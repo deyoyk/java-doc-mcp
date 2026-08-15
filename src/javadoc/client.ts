@@ -79,20 +79,21 @@ class HttpCache {
 
 export class JavadocClient {
   private cache: HttpCache;
-  private readonly base: URL;
 
   constructor(private readonly config: Config) {
     this.cache = new HttpCache(config.useCache ? config.cacheDir : null, config.cacheTtlMs);
-    this.base = new URL(config.baseUrl);
   }
 
   get baseUrl(): string {
     return this.config.baseUrl;
   }
 
-  /** Resolve a path fragment relative to the docs root. */
-  resolve(rel: string): string {
-    return new URL(rel, this.base).toString();
+  /** Resolve a path fragment relative to the given (or default) docs root. */
+  resolve(rel: string, baseUrl?: string): string {
+    // Ensure the base ends with a slash so the last path segment is treated
+    // as a directory, not a file (new URL would otherwise drop it).
+    const base = (baseUrl ?? this.config.baseUrl).replace(/\/?$/, '/');
+    return new URL(rel, base).toString();
   }
 
   private async rawFetch(url: string, attempt: number): Promise<CacheEntry> {

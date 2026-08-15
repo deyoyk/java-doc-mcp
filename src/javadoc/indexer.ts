@@ -64,50 +64,71 @@ const kindFromCategory = (c?: string): TypeKind | undefined => {
   }
 };
 
+export function normalizeBase(raw: string): string {
+  return raw.trim().replace(/\/+$/, '');
+}
+
 export class Indexer {
-  private cached: DocIndex | null = null;
-  private format: IndexFormat | null = null;
-  private indexPromise: Promise<DocIndex> | null = null;
+  private cached = new Map<string, DocIndex>();
+  private formats = new Map<string, IndexFormat>();
+  private pending = new Map<string, Promise<DocIndex>>();
 
   constructor(private readonly client: JavadocClient) {}
 
-  getFormat(): IndexFormat | null {
-    return this.format;
+  getFormat(baseUrl: string): IndexFormat | null {
+    return this.formats.get(normalizeBase(baseUrl)) ?? null;
   }
 
-  async load(): Promise<DocIndex> {
-    if (this.cached) return this.cached;
-    if (this.indexPromise) return this.indexPromise;
-    this.indexPromise = this.buildIndex().then((idx) => {
-      this.cached = idx;
+  load(baseUrl: string): Promise<DocIndex> {
+    const base = normalizeBase(baseUrl);
+    const cached = this.cached.get(base);
+    if (cached) return Promise.resolve(cached);
+    const inFlight = this.pending.get(base);
+    if (inFlight) return inFlight;
+    const promise = this.buildIndex(base).then((idx) => {
+      this.cached.set(base, idx);
+      this.pending.delete(base);
+      this.trimCache();
       return idx;
     });
-    return this.indexPromise;
+    this.pending.set(base, promise);
+    return promise;
   }
 
-  private async buildIndex(): Promise<DocIndex> {
-    const modern = await this.tryModernIndex();
+  /** Keep the per-site index cache bounded so long-running servers don't grow forever. */
+  private trimCache(): void {
+    const MAX_SITES = 32;
+    if (this.cached.size <= MAX_SITES) return;
+    for (const base of this.cached.keys()) {
+      this.cached.delete(base);
+      this.formats.delete(base);
+      if (this.cached.size <= MAX_SITES) break;
+    }
+  }
+
+  private async buildIndex(base: string): Promise<DocIndex> {
+    const modern = await this.tryModernIndex(base);
     if (modern) {
-      this.format = 'modern';
+      this.formats.set(base, 'modern');
       return modern;
     }
-    const legacy = await this.tryLegacyIndex();
+    const legacy = await this.tryLegacyIndex(base);
     if (legacy) {
-      this.format = 'legacy';
+      this.formats.set(base, 'legacy');
       return legacy;
     }
     throw new Error(
-      `Could not locate any JavaDoc index files at ${this.client.baseUrl}. ` +
+      `Could not locate any JavaDoc index files at ${base}. ` +
         'Make sure the URL points at the root of a generated javadoc site (the folder containing ' +
         'type-search-index.js or allclasses-noframe.html).',
     );
   }
 
-  private async tryModernIndex(): Promise<DocIndex | null> {
+  private async tryModernIndex(base: string): Promise<DocIndex | null> {
     const typeNames = ['type-search-index.js', 'typeindex.js'];
     let typesRaw: string | null = null;
     for (const name of typeNames) {
-      typesRaw = await this.client.fetchJs(this.client.resolve(name));
+      typesRaw = await this.client.fetchJs(this.client.resolve(name, base));
       if (typesRaw !== null) break;
     }
     if (typesRaw === null) return null;
@@ -120,10 +141,10 @@ export class Indexer {
     if (types === null) return null;
 
     for (const name of ['package-search-index.js', 'packageindex.js', 'packages.js']) {
-      packagesRaw = await this.client.fetchJs(this.client.resolve(name));
+      packagesRaw = await this.client.fetchJs(this.client.resolve(name, base));
       if (packagesRaw !== null) break;
     }
-    membersRaw = await this.client.fetchJs(this.client.resolve('member-search-index.js'));
+    membersRaw = await this.client.fetchJs(this.client.resolve('member-search-index.js', base));
 
     const packages = this.parsePackages(packagesRaw);
     const memberEntries = membersRaw !== null ? parseJsArray(membersRaw, 'memberSearchIndex') : null;
@@ -186,8 +207,8 @@ export class Indexer {
     return [];
   }
 
-  private async tryLegacyIndex(): Promise<DocIndex | null> {
-    const html = await this.client.getHtml(this.client.resolve('allclasses-noframe.html'));
+  private async tryLegacyIndex(base: string): Promise<DocIndex | null> {
+    const html = await this.client.getHtml(this.client.resolve('allclasses-noframe.html', base));
     if (html === null) return null;
 
     const root = parse(html.text);
@@ -211,8 +232,8 @@ export class Indexer {
 
     // Legacy package list: newline separated file, or allpackages-index.html.
     const packages: PackageEntry[] = [];
-    const listRaw = await this.client.getHtml(this.client.resolve('element-list'));
-    const listRaw2 = listRaw === null ? await this.client.getHtml(this.client.resolve('package-list')) : null;
+    const listRaw = await this.client.getHtml(this.client.resolve('element-list', base));
+    const listRaw2 = listRaw === null ? await this.client.getHtml(this.client.resolve('package-list', base)) : null;
     const listText = (listRaw?.text ?? null) ?? (listRaw2?.text ?? null);
     if (listText !== null) {
       for (const line of listText.split(/\r?\n/)) {
@@ -221,7 +242,7 @@ export class Indexer {
       }
     }
     if (packages.length === 0) {
-      const allPkgs = await this.client.getHtml(this.client.resolve('allpackages-index.html'));
+      const allPkgs = await this.client.getHtml(this.client.resolve('allpackages-index.html', base));
       if (allPkgs !== null) {
         const proot = parse(allPkgs.text);
         for (const a of proot.querySelectorAll('a[href]')) {

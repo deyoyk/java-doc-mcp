@@ -5,7 +5,7 @@ import { JavadocClient } from './javadoc/client.js';
 import { JavadocService } from './javadoc/service.js';
 import { registerTools } from './tools.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 function main(): void {
   const argv = process.argv.slice(2);
@@ -32,7 +32,9 @@ function main(): void {
     return server;
   });
 
-  process.stderr.write(`java-doc-mcp v${VERSION} started. JavaDoc base URL: ${config.baseUrl}\n`);
+  process.stderr.write(
+    `java-doc-mcp v${VERSION} started. The AI passes a javadoc URL on every tool call (default site: ${config.baseUrl}).\n`,
+  );
 }
 
 main();

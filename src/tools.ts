@@ -33,27 +33,36 @@ async function run(fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
   }
 }
 
+const urlSchema = z
+  .string()
+  .min(1)
+  .describe(
+    'Root URL of the javadoc site the user asked about. Examples: https://docs.oracle.com/en/java/javase/21/docs/api/, ' +
+      'https://javadoc.io/doc/com.google.guava/guava/latest/, https://javadocs.mbedwars.com/. ' +
+      'Reuse the same URL across calls in this conversation.',
+  );
+
 export function registerTools(server: McpServer, service: JavadocService, _client: JavadocClient): void {
   server.registerTool(
     'search_classes',
     {
       title: 'Search classes',
       description:
-        'Search the JavaDoc index for classes, interfaces, enums, annotations and records by name. ' +
-        'Returns fully qualified names with a short type kind hint. Use this to discover the exact spelling ' +
-        'before calling get_class.',
+        'Search the JavaDoc index of a site for classes, interfaces, enums, annotations and records by name. ' +
+        'Returns fully qualified names with a kind hint. Use this to discover the exact spelling before calling get_class.',
       inputSchema: z.object({
-        query: z.string().min(1).describe('Class name or partial name, e.g. "ConcurrentHashMap", "stream", "StringBuilder"'),
+        url: urlSchema,
+        query: z.string().min(1).describe('Class name or partial name, e.g. "ConcurrentHashMap", "CommandHandler", "StringBuilder"'),
         package: z
           .string()
           .optional()
-          .describe('Optional package filter (exact or prefix), e.g. "java.util" or "com.google.common.collect".'),
+          .describe('Optional package filter (exact or prefix), e.g. "java.util" or "de.marcely.bedwars.api".'),
         limit: z.number().int().min(1).max(50).optional().describe('Maximum number of results (default 15).'),
       }),
     },
-    async ({ query, package: packageFilter, limit }) =>
+    async ({ url, query, package: packageFilter, limit }) =>
       run(async () => {
-        const results = await service.searchTypes({ query, packageFilter, limit: limit ?? 15 });
+        const results = await service.searchTypes(url, { query, packageFilter, limit: limit ?? 15 });
         return ok(formatSearchResults(results, query));
       }),
   );
@@ -63,14 +72,15 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
     {
       title: 'Get class documentation',
       description:
-        'Fetch the full documentation page for a class, interface, enum, annotation or record: declaration, ' +
-        'description, inheritance, and all declared fields, constructors and methods (signatures with one-line ' +
-        'descriptions). Accepts a fully qualified name (java.lang.String) or a unique simple name (String).',
+        'Fetch the full documentation page for a class, interface, enum, annotation or record from a javadoc site: ' +
+        'declaration, description, inheritance, and all declared fields, constructors and methods. ' +
+        'Accepts a fully qualified name (java.lang.String) or a unique simple name (String).',
       inputSchema: z.object({
+        url: urlSchema,
         name: z
           .string()
           .min(1)
-          .describe('Class name: fully qualified (java.util.List) or simple (List, ConcurrentHashMap).'),
+          .describe('Class name: fully qualified (java.util.List) or simple (List, CommandHandler).'),
         memberLimit: z
           .number()
           .int()
@@ -80,9 +90,9 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
           .describe('Maximum number of members to list per section (default 120).'),
       }),
     },
-    async ({ name, memberLimit }) =>
+    async ({ url, name, memberLimit }) =>
       run(async () => {
-        const doc = await service.getClassDoc(name);
+        const doc = await service.getClassDoc(url, name);
         return ok(formatClassDoc(doc));
       }),
   );
@@ -93,23 +103,24 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
       title: 'Get member documentation',
       description:
         'Fetch the full documentation for a single method, field or constructor of a class: complete signature, ' +
-        'parameters, return type, exceptions thrown, since-version and deprecation notes. If the class has ' +
-        'overloaded members with the same name, all matching overloads are returned.',
+        'parameters, return type, exceptions thrown, since-version and deprecation notes. ' +
+        'If the class has overloaded members with the same name, all matching overloads are returned.',
       inputSchema: z.object({
+        url: urlSchema,
         className: z
           .string()
           .min(1)
           .describe('Fully qualified or simple class name containing the member, e.g. "java.lang.String".'),
-        memberName: z.string().min(1).describe('Member name, e.g. "substring", "CASE_INSENSITIVE_ORDER", "equals".'),
+        memberName: z.string().min(1).describe('Member name, e.g. "substring", "CASE_INSENSITIVE_ORDER", "onRegister".'),
         anchor: z
           .string()
           .optional()
           .describe('Exact page anchor (e.g. "substring(int,int)") to disambiguate overloads; usually not required.'),
       }),
     },
-    async ({ className, memberName, anchor }) =>
+    async ({ url, className, memberName, anchor }) =>
       run(async () => {
-        const members = await service.getMember(className, memberName, anchor);
+        const members = await service.getMember(url, className, memberName, anchor);
         if (members.length === 0) {
           throw new ClassNotFoundError(`No member named "${memberName}" found in ${className}.`);
         }
@@ -126,7 +137,8 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
         'in that class. Without a className, searches the whole site-wide member index (modern javadoc only) and ' +
         'returns the classes that declare matching members.',
       inputSchema: z.object({
-        query: z.string().min(1).describe('Member name or partial name, e.g. "of", "getBytes", "put".'),
+        url: urlSchema,
+        query: z.string().min(1).describe('Member name or partial name, e.g. "of", "getBytes", "onFire".'),
         className: z
           .string()
           .optional()
@@ -134,9 +146,9 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
         limit: z.number().int().min(1).max(50).optional().describe('Maximum number of results (default 20).'),
       }),
     },
-    async ({ query, className, limit }) =>
+    async ({ url, query, className, limit }) =>
       run(async () => {
-        const members = await service.searchMembers(query, className, limit ?? 20);
+        const members = await service.searchMembers(url, query, className, limit ?? 20);
         if (className) {
           return ok(formatMemberList(members, className, query));
         }
@@ -158,16 +170,17 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
     {
       title: 'List packages',
       description:
-        'List the packages documented on the JavaDoc site, optionally filtered by a query string. ' +
+        'List the packages documented on a javadoc site, optionally filtered by a query string. ' +
         'Useful for discovering which packages/libraries are documented.',
       inputSchema: z.object({
+        url: urlSchema,
         query: z.string().optional().describe('Optional filter: packages whose name contains this text.'),
         limit: z.number().int().min(1).max(500).optional().describe('Maximum number of results (default 200).'),
       }),
     },
-    async ({ query, limit }) =>
+    async ({ url, query, limit }) =>
       run(async () => {
-        const packages = await service.listPackages(query, limit ?? 200);
+        const packages = await service.listPackages(url, query, limit ?? 200);
         return ok(formatPackages(packages));
       }),
   );
@@ -177,14 +190,16 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
     {
       title: 'List classes in a package',
       description:
-        'List every class, interface, enum and annotation declared in a package. Returns fully qualified names.',
+        'List every class, interface, enum and annotation declared in a package on a javadoc site. ' +
+        'Returns fully qualified names.',
       inputSchema: z.object({
-        packageName: z.string().min(1).describe('Package name, e.g. "java.util" or "com.google.common.collect".'),
+        url: urlSchema,
+        packageName: z.string().min(1).describe('Package name, e.g. "java.util" or "de.marcely.bedwars.api.event".'),
       }),
     },
-    async ({ packageName }) =>
+    async ({ url, packageName }) =>
       run(async () => {
-        const types = await service.listClasses(packageName);
+        const types = await service.listClasses(url, packageName);
         return ok(formatClasses(packageName, types.map((t) => ({ label: t.label, package: t.package, kind: t.kind }))));
       }),
   );
@@ -194,13 +209,15 @@ export function registerTools(server: McpServer, service: JavadocService, _clien
     {
       title: 'Site information',
       description:
-        'Return information about the configured JavaDoc site: base URL, index format, and the number of indexed ' +
-        'packages, types and members.',
-      inputSchema: z.object({}),
+        'Report information about a javadoc site: base URL, index format, and the number of indexed ' +
+        'packages, types and members. Use this first to confirm the URL is a valid javadoc site.',
+      inputSchema: z.object({
+        url: urlSchema,
+      }),
     },
-    async () =>
+    async ({ url }) =>
       run(async () => {
-        const stats = await service.getStats();
+        const stats = await service.getStats(url);
         return ok(
           `## JavaDoc site\n\n- **Base URL:** ${stats.baseUrl}\n- **Index format:** ${stats.format}\n- **Packages:** ${stats.packages}\n- **Types:** ${stats.types}\n- **Indexed members:** ${stats.members}`,
         );

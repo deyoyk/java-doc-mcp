@@ -1,6 +1,6 @@
 {
   "name": "java-doc-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server that lets AI agents fetch, search and explore any publicly hosted JavaDoc website. Run locally with npx, works with any javadoc site.",
   "type": "module",
   "license": "MIT",

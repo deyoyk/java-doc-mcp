@@ -2,6 +2,7 @@ import { JavadocClient, JavadocError } from './client.js';
 import { Indexer } from './indexer.js';
 import { findMemberByAnchor, parseClassPage, summarizePage } from './classParser.js';
 import { ClassDoc, MemberDetail, MemberSummary, PackageEntry, SearchResult, TypeEntry, TypeKind } from '../types.js';
+import { normalizeBaseUrl } from '../config.js';
 
 export class ClassNotFoundError extends Error {
   readonly candidates: SearchResult[];
@@ -28,7 +29,6 @@ function subsequence(haystack: string, needle: string): boolean {
 }
 
 function camelHumps(label: string): string {
-  // Keep upper-case letters that start a camel-case segment.
   return label.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
 }
 
@@ -49,7 +49,6 @@ export function scoreType(entry: TypeEntry, query: string, packageFilter?: strin
     if (pkg.includes(token)) score += 4;
   }
 
-  // Whole-label subsequence match on camel-hump words ("cmap" -> ConcurrentMap).
   const labelWords = camelHumps(entry.label).split(' ');
   const allQuery = tokens.join('');
   if (labelWords.join('').startsWith(allQuery)) score += 40;
@@ -64,6 +63,10 @@ export function scoreType(entry: TypeEntry, query: string, packageFilter?: strin
   return score;
 }
 
+/**
+ * Multi-site JavaDoc access layer. Every method takes the javadoc root URL
+ * so a single MCP server can serve any number of doc sites the caller picks.
+ */
 export class JavadocService {
   private readonly indexer: Indexer;
   private classPageCache = new Map<string, { url: string; html: string }>();
@@ -72,23 +75,26 @@ export class JavadocService {
     this.indexer = new Indexer(client);
   }
 
-  private async index() {
-    return this.indexer.load();
+  private index(baseUrl: string) {
+    return this.indexer.load(baseUrl);
   }
 
-  async getStats(): Promise<{ baseUrl: string; packages: number; types: number; members: number; format: string }> {
-    const idx = await this.index();
+  async getStats(
+    baseUrl: string,
+  ): Promise<{ baseUrl: string; packages: number; types: number; members: number; format: string }> {
+    const base = normalizeBaseUrl(baseUrl);
+    const idx = await this.index(base);
     return {
-      baseUrl: this.client.baseUrl,
+      baseUrl: base,
       packages: idx.packages.length,
       types: idx.types.length,
       members: idx.members.length,
-      format: this.indexer.getFormat() ?? 'unknown',
+      format: this.indexer.getFormat(base) ?? 'unknown',
     };
   }
 
-  private classUrlCandidates(entry: TypeEntry): string[] {
-    const base = this.client.baseUrl;
+  private classUrlCandidates(baseUrl: string, entry: TypeEntry): string[] {
+    const base = normalizeBaseUrl(baseUrl);
     const dir = entry.package.replace(/\./g, '/');
     const file = encodeURI(entry.label) + '.html';
     const candidates: string[] = [];
@@ -103,8 +109,8 @@ export class JavadocService {
     return candidates;
   }
 
-  async listPackages(query?: string, limit = 200): Promise<PackageEntry[]> {
-    const idx = await this.index();
+  async listPackages(baseUrl: string, query?: string, limit = 200): Promise<PackageEntry[]> {
+    const idx = await this.index(baseUrl);
     let packages = idx.packages;
     if (query) {
       const q = query.toLowerCase();
@@ -116,15 +122,14 @@ export class JavadocService {
     return packages.slice(0, limit);
   }
 
-  async listClasses(packageName: string): Promise<TypeEntry[]> {
-    const idx = await this.index();
+  async listClasses(baseUrl: string, packageName: string): Promise<TypeEntry[]> {
+    const idx = await this.index(baseUrl);
     const pkg = packageName.trim();
-    const out = idx.types.filter((t) => t.package === pkg).sort((a, b) => a.label.localeCompare(b.label));
-    return out;
+    return idx.types.filter((t) => t.package === pkg).sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  async searchTypes(opts: SearchOptions): Promise<SearchResult[]> {
-    const idx = await this.index();
+  async searchTypes(baseUrl: string, opts: SearchOptions): Promise<SearchResult[]> {
+    const idx = await this.index(baseUrl);
     const limit = Math.min(opts.limit ?? 15, 50);
     const query = opts.query.trim();
     if (!query) return [];
@@ -134,14 +139,7 @@ export class JavadocService {
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
 
-    return scored.slice(0, limit).map(({ t, score }) => ({
-      name: t.package ? `${t.package}.${t.label}` : t.label,
-      package: t.package,
-      kind: t.kind ?? 'class',
-      module: t.module,
-      score,
-      url: this.classUrlCandidates(t)[0],
-    }));
+    return scored.slice(0, limit).map(({ t, score }) => this.toSearchResult(baseUrl, t, score));
   }
 
   /**
@@ -149,8 +147,8 @@ export class JavadocService {
    * `.html` suffix) to a type index entry. Throws `ClassNotFoundError` with
    * candidates when ambiguous or unknown.
    */
-  async resolveClass(name: string): Promise<TypeEntry> {
-    const idx = await this.index();
+  async resolveClass(baseUrl: string, name: string): Promise<TypeEntry> {
+    const idx = await this.index(baseUrl);
     let query = name.trim();
     query = query.replace(/\.html?$/i, '');
 
@@ -166,14 +164,13 @@ export class JavadocService {
       const candidates = simpleExact
         .map((t) => ({ t, score: scoreType(t, query) }))
         .sort((a, b) => b.score - a.score)
-        .map(({ t }) => this.toSearchResult(t, 100));
+        .map(({ t }) => this.toSearchResult(baseUrl, t, 100));
       throw new ClassNotFoundError(
         `Ambiguous class name '${name}'. Matches ${simpleExact.length} classes; specify the fully qualified name.`,
         candidates,
       );
     }
 
-    // Best-effort fuzzy resolution with a strong-preference threshold.
     const scored = idx.types
       .map((t) => ({ t, score: scoreType(t, query) }))
       .filter((x) => x.score > 0)
@@ -181,28 +178,30 @@ export class JavadocService {
     if (scored.length > 0 && scored[0].score >= 55) {
       return scored[0].t;
     }
-    const candidates = scored.slice(0, 8).map(({ t, score }) => this.toSearchResult(t, score));
+    const candidates = scored.slice(0, 8).map(({ t, score }) => this.toSearchResult(baseUrl, t, score));
     throw new ClassNotFoundError(
-      `Could not find class '${name}'. Try search_classes for exact spelling, or use the fully qualified name.`,
+      `Could not find class '${name}' on the configured site. Try search_classes for exact spelling, or use the fully qualified name.`,
       candidates,
     );
   }
 
-  private toSearchResult(t: TypeEntry, score: number): SearchResult {
+  private toSearchResult(baseUrl: string, t: TypeEntry, score: number): SearchResult {
     return {
       name: t.package ? `${t.package}.${t.label}` : t.label,
       package: t.package,
       kind: t.kind ?? 'class',
       module: t.module,
       score,
-      url: this.classUrlCandidates(t)[0],
+      url: this.classUrlCandidates(baseUrl, t)[0],
     };
   }
 
-  private async fetchClassPage(entry: TypeEntry): Promise<{ url: string; html: string }> {
-    const cached = this.classPageCache.get(entry.label + '|' + entry.package);
+  private async fetchClassPage(baseUrl: string, entry: TypeEntry): Promise<{ url: string; html: string }> {
+    const base = normalizeBaseUrl(baseUrl);
+    const key = `${base}|${entry.package}|${entry.label}`;
+    const cached = this.classPageCache.get(key);
     if (cached) return cached;
-    const candidates = this.classUrlCandidates(entry);
+    const candidates = this.classUrlCandidates(base, entry);
     const fetched = await this.client.fetchFirst(candidates);
     if (!fetched) {
       throw new ClassNotFoundError(
@@ -210,14 +209,14 @@ export class JavadocService {
       );
     }
     const result = { url: fetched.url, html: fetched.text };
-    if (this.classPageCache.size > 200) this.classPageCache.clear();
-    this.classPageCache.set(entry.label + '|' + entry.package, result);
+    if (this.classPageCache.size > 400) this.classPageCache.clear();
+    this.classPageCache.set(key, result);
     return result;
   }
 
-  async getClassDoc(name: string): Promise<ClassDoc> {
-    const entry = await this.resolveClass(name);
-    const { url, html } = await this.fetchClassPage(entry);
+  async getClassDoc(baseUrl: string, name: string): Promise<ClassDoc> {
+    const entry = await this.resolveClass(baseUrl, name);
+    const { url, html } = await this.fetchClassPage(baseUrl, entry);
     const page = parseClassPage(html, url);
     const summaries = summarizePage(page);
 
@@ -246,18 +245,17 @@ export class JavadocService {
     };
   }
 
-  async getMember(className: string, memberName: string, anchor?: string): Promise<MemberDetail[]> {
-    const entry = await this.resolveClass(className);
-    const { url, html } = await this.fetchClassPage(entry);
+  async getMember(baseUrl: string, className: string, memberName: string, anchor?: string): Promise<MemberDetail[]> {
+    const entry = await this.resolveClass(baseUrl, className);
+    const { url, html } = await this.fetchClassPage(baseUrl, entry);
+    const page = parseClassPage(html, url);
     if (anchor) {
-      const found = findMemberByAnchor(parseClassPage(html, url), anchor);
+      const found = findMemberByAnchor(page, anchor);
       if (found) return [found];
     }
-    const page = parseClassPage(html, url);
     const name = memberName.trim();
     const matches = page.members.filter((m) => m.name === name);
     if (matches.length > 0) return matches;
-    // Fuzzy fallback.
     const fuzzy = page.members
       .map((m) => ({ m, score: scoreType({ label: m.name, package: entry.package }, name) }))
       .filter((x) => x.score > 0)
@@ -265,10 +263,10 @@ export class JavadocService {
     return fuzzy.slice(0, 5).map((x) => x.m);
   }
 
-  async searchMembers(query: string, className?: string, limit = 20): Promise<MemberSummary[]> {
+  async searchMembers(baseUrl: string, query: string, className?: string, limit = 20): Promise<MemberSummary[]> {
     if (className) {
-      const entry = await this.resolveClass(className);
-      const { url, html } = await this.fetchClassPage(entry);
+      const entry = await this.resolveClass(baseUrl, className);
+      const { url, html } = await this.fetchClassPage(baseUrl, entry);
       const page = parseClassPage(html, url);
       const scored = page.members
         .map((m) => ({ m, score: scoreType({ label: m.name, package: entry.package }, query) }))
@@ -277,10 +275,8 @@ export class JavadocService {
       return scored.slice(0, limit).map((x) => x.m);
     }
 
-    // Search across the whole member index (modern javadoc only).
-    const idx = await this.index();
+    const idx = await this.index(baseUrl);
     if (idx.members.length > 0) {
-      const q = query.toLowerCase();
       const hits = idx.members
         .map((m) => ({
           m,

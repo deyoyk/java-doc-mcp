@@ -110,13 +110,14 @@ export function ensureCacheDir(cfg: Config): void {
 
 export const HELP_TEXT = `java-doc-mcp - MCP server for any public JavaDoc website
 
+The AI picks which javadoc site to use on every tool call by passing the
+site's root URL as the "url" argument. No site is hardcoded at startup.
+
 Usage:
   java-doc-mcp [options]
 
-Options:
-  --url <url>         Root URL of the JavaDoc site (default: Java SE 21 API docs)
-                      e.g. --url https://docs.oracle.com/en/java/javase/21/docs/api/
-                      e.g. --url https://javadoc.io/doc/com.google.guava/guava/latest/
+Options (all optional):
+  --url <url>         Default javadoc root URL used when a tool call omits "url"
                       Env: JAVA_DOC_URL
   --cache-dir <path>  Directory for the on-disk HTTP cache (default: platform cache dir)
                       Env: JAVA_DOC_CACHE_DIR
@@ -134,8 +135,12 @@ Examples (claude_desktop_config.json / .mcp.json / opencode.json):
     "mcpServers": {
       "java-doc": {
         "command": "npx",
-        "args": ["-y", "java-doc-mcp", "--url", "https://docs.oracle.com/en/java/javase/21/docs/api/"]
+        "args": ["-y", "java-doc-mcp"]
       }
     }
   }
+
+The AI then calls tools with the desired site, e.g.
+  search_classes { url: "https://javadocs.mbedwars.com/", query: "CommandHandler" }
+  get_class      { url: "https://docs.oracle.com/en/java/javase/21/docs/api/", name: "java.lang.String" }
 `;
