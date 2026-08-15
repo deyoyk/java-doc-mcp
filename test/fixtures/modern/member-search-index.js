@@ -1,0 +1,1 @@
+memberSearchIndex = [{"p":"java.lang","c":"String","l":"charAt"},{"p":"java.lang","c":"String","l":"length"},{"p":"java.lang","c":"String","l":"substring"},{"p":"java.lang","c":"String","l":"valueOf"},{"p":"java.util","c":"List","l":"add"},{"p":"java.util","c":"List","l":"get"},{"p":"java.util","c":"List","l":"size"}];updateSearchResults();

@@ -1,0 +1,1 @@
+packageSearchIndex = [{"m":"java.base","l":"java.lang"},{"m":"java.base","l":"java.util"},{"m":"java.base","l":"java.util.concurrent"},{"m":"java.base","l":"java.lang.annotation"},{"m":"java.base","l":"java.util.stream"},{"l":"com.example.lib"}];updateSearchResults();

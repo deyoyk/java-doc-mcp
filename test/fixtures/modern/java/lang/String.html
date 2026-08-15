@@ -1,0 +1,170 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+<title>Class String</title>
+</head>
+<body>
+<main role="main">
+<div class="header">
+<h1 title="Class String" class="title">Class String</h1>
+</div>
+<div class="contentContainer">
+<section class="class-description" id="class-description">
+<div class="inheritance">java.lang.Object<br><a href="String.html" title="class in java.lang">java.lang.String</a></div>
+<div class="type-signature"><span class="modifiers">public final class </span><span class="element-name type-name-label">String</span><span class="extends-implements"> extends <a href="Object.html" title="class in java.lang">Object</a> implements <a href="Serializable.html" title="interface in java.io">Serializable</a>, <a href="Comparable.html" title="interface in java.lang">Comparable</a>&lt;String&gt;, <a href="CharSequence.html" title="interface in java.lang">CharSequence</a>, <a href="Constable.html" title="interface in java.lang">Constable</a>, <a href="ConstantDesc.html" title="interface in java.lang">ConstantDesc</a></span></div>
+<div class="block">The <code>String</code> class represents character strings. All string literals in Java programs, such as <code>"abc"</code>, are implemented as instances of this class.</div>
+<dl class="notes">
+<dt>Since:</dt>
+<dd>1.0</dd>
+<dt>All Implemented Interfaces:</dt>
+<dd>Serializable, Comparable&lt;String&gt;, CharSequence, Constable, ConstantDesc</dd>
+</dl>
+</section>
+
+<section class="summary">
+<section class="field-summary" id="field-summary">
+<h2>Field Summary</h2>
+<div class="summary-table three-column-summary">
+<div class="table-header col-first">Modifier and Type</div>
+<div class="table-header col-second">Field</div>
+<div class="table-header col-last">Description</div>
+<div class="col-first even-row-color"><code>static final Comparator&lt;String&gt;</code></div>
+<div class="col-second even-row-color"><code><a href="#CASE_INSENSITIVE_ORDER">CASE_INSENSITIVE_ORDER</a></code></div>
+<div class="col-last even-row-color">A <code>Comparator</code> that orders <code>String</code> objects as by <code>compareToIgnoreCase</code>.</div>
+</div>
+</section>
+
+<section class="constructor-summary" id="constructor-summary">
+<h2>Constructor Summary</h2>
+<div class="summary-table two-column-summary">
+<div class="table-header col-first">Constructor</div>
+<div class="table-header col-last">Description</div>
+<div class="col-constructor-name even-row-color"><code><a href="#String()">String</a>()</code></div>
+<div class="col-last even-row-color">Initializes a newly created <code>String</code> object so that it represents an empty character sequence.</div>
+</div>
+</section>
+
+<section class="method-summary" id="method-summary">
+<h2>Method Summary</h2>
+<div class="summary-table">
+<div class="table-header col-first">Modifier and Type</div>
+<div class="table-header col-second">Method</div>
+<div class="table-header col-last">Description</div>
+<div class="col-first even-row-color"><code>char</code></div>
+<div class="col-second even-row-color"><code><a href="#charAt(int)">charAt</a>(int index)</code></div>
+<div class="col-last even-row-color">Returns the <code>char</code> value at the specified index.</div>
+<div class="col-first odd-row-color"><code>int</code></div>
+<div class="col-second odd-row-color"><code><a href="#length()">length</a>()</code></div>
+<div class="col-last odd-row-color">Returns the length of this string.</div>
+<div class="col-first even-row-color"><code>String</code></div>
+<div class="col-second even-row-color"><code><a href="#substring(int)">substring</a>(int beginIndex)</code></div>
+<div class="col-last even-row-color">Returns a string that is a substring of this string.</div>
+<div class="col-first odd-row-color"><code>String</code></div>
+<div class="col-second odd-row-color"><code><a href="#substring(int,int)">substring</a>(int beginIndex, int endIndex)</code></div>
+<div class="col-last odd-row-color">Returns a string that is a substring of this string.</div>
+<div class="col-first even-row-color"><code>void</code></div>
+<div class="col-second even-row-color"><code><a href="#getBytes(int,int,byte[],int)">getBytes</a>(int srcBegin, int srcEnd, byte[] dst, int dstBegin)</code></div>
+<div class="col-last even-row-color">Deprecated. This method does not properly convert characters into bytes.</div>
+</div>
+</section>
+</section>
+
+<section class="details" id="details">
+<section class="field-details" id="field-details">
+<h2>Field Details</h2>
+<section class="detail" id="CASE_INSENSITIVE_ORDER">
+<h3>CASE_INSENSITIVE_ORDER</h3>
+<div class="member-signature"><span class="modifiers">public static final </span><span class="return-type">Comparator&lt;String&gt;</span><span class="element-name">CASE_INSENSITIVE_ORDER</span></div>
+<div class="block">A <code>Comparator</code> that orders <code>String</code> objects as by <code>compareToIgnoreCase</code>. This comparator is serializable.</div>
+<dl class="notes">
+<dt>Since:</dt>
+<dd>1.2</dd>
+</dl>
+</section>
+</section>
+
+<section class="constructor-details" id="constructor-details">
+<h2>Constructor Details</h2>
+<section class="detail" id="String()">
+<h3>String</h3>
+<div class="member-signature"><span class="modifiers">public </span><span class="element-name">String</span><span class="parameters">()</span></div>
+<div class="block">Initializes a newly created <code>String</code> object so that it represents an empty character sequence.</div>
+</section>
+</section>
+
+<section class="method-details" id="method-details">
+<h2>Method Details</h2>
+<section class="detail" id="length()">
+<h3>length</h3>
+<div class="member-signature"><span class="modifiers">public </span><span class="return-type">int</span><span class="element-name">length</span><span class="parameters">()</span></div>
+<div class="block">Returns the length of this string. The length is equal to the number of Unicode code units in the string.</div>
+<dl class="notes">
+<dt>Specified by:</dt>
+<dd><code>length</code> in interface <code>CharSequence</code></dd>
+<dt>Returns:</dt>
+<dd>the length of the sequence of characters represented by this object.</dd>
+</dl>
+</section>
+
+<section class="detail" id="charAt(int)">
+<h3>charAt</h3>
+<div class="member-signature"><span class="modifiers">public </span><span class="return-type">char</span><span class="element-name">charAt</span><span class="parameters">(int index)</span></div>
+<div class="block">Returns the <code>char</code> value at the specified index.</div>
+<dl class="notes">
+<dt>Parameters:</dt>
+<dd><code>index</code> - the index of the char value.</dd>
+<dt>Returns:</dt>
+<dd>the char value at the specified index of this string.</dd>
+<dt>Throws:</dt>
+<dd><code>IndexOutOfBoundsException</code> - if the index argument is negative or not less than the length of this string.</dd>
+</dl>
+</section>
+
+<section class="detail" id="substring(int)">
+<h3>substring</h3>
+<div class="member-signature"><span class="modifiers">public </span><span class="return-type">String</span><span class="element-name">substring</span><span class="parameters">(int beginIndex)</span></div>
+<div class="block">Returns a string that is a substring of this string. The substring begins with the character at the specified index and extends to the end of this string.</div>
+<dl class="notes">
+<dt>Parameters:</dt>
+<dd><code>beginIndex</code> - the beginning index, inclusive.</dd>
+<dt>Returns:</dt>
+<dd>the specified substring.</dd>
+<dt>Throws:</dt>
+<dd><code>IndexOutOfBoundsException</code> - if beginIndex is negative or larger than the length of this String object.</dd>
+</dl>
+</section>
+
+<section class="detail" id="substring(int,int)">
+<h3>substring</h3>
+<div class="member-signature"><span class="modifiers">public </span><span class="return-type">String</span><span class="element-name">substring</span><span class="parameters">(int beginIndex, int endIndex)</span></div>
+<div class="block">Returns a string that is a substring of this string. The substring begins at the specified <code>beginIndex</code> and extends to the character at index <code>endIndex - 1</code>.</div>
+<dl class="notes">
+<dt>Parameters:</dt>
+<dd><code>beginIndex</code> - the beginning index, inclusive.</dd>
+<dd><code>endIndex</code> - the end index, exclusive.</dd>
+<dt>Returns:</dt>
+<dd>the specified substring.</dd>
+<dt>Throws:</dt>
+<dd><code>IndexOutOfBoundsException</code> - if the beginIndex is negative, or endIndex is larger than the length of this String object, or beginIndex is larger than endIndex.</dd>
+</dl>
+</section>
+
+<section class="detail" id="getBytes(int,int,byte[],int)">
+<h3>getBytes</h3>
+<div class="deprecation-block"><div class="deprecation-comment">This method does not properly convert characters into bytes.</div></div>
+<div class="member-signature"><span class="modifiers">@Deprecated(since="1.1") public </span><span class="return-type">void</span><span class="element-name">getBytes</span><span class="parameters">(int srcBegin, int srcEnd, byte[] dst, int dstBegin)</span></div>
+<div class="block">Copies characters from this string into the destination byte array.</div>
+<dl class="notes">
+<dt>Parameters:</dt>
+<dd><code>srcBegin</code> - Index of the first character in the string to copy</dd>
+<dd><code>srcEnd</code> - Index after the last character in the string to copy</dd>
+<dd><code>dst</code> - The destination array</dd>
+<dd><code>dstBegin</code> - The start offset in the destination array</dd>
+</dl>
+</section>
+</section>
+</section>
+</div>
+</main>
+</body>
+</html>
