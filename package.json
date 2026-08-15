@@ -1,0 +1,48 @@
+{
+  "name": "java-doc-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets AI agents fetch, search and explore any publicly hosted JavaDoc website. Run locally with npx, works with any javadoc site.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "javadoc",
+    "java",
+    "documentation",
+    "ai",
+    "claude",
+    "cursor",
+    "search"
+  ],
+  "bin": {
+    "java-doc-mcp": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "node-html-parser": "^7.0.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
